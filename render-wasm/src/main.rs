@@ -222,7 +222,7 @@ pub extern "C" fn set_canvas_background(raw_color: u32) -> Result<()> {
 
 #[no_mangle]
 #[wasm_error]
-pub extern "C" fn render(_: i32) -> Result<()> {
+pub extern "C" fn render(timestamp: i32) -> Result<()> {
     with_state_mut!(state, {
         state.rebuild_touched_tiles();
         // Drain the throttled modifier-tile invalidation accumulated
@@ -237,7 +237,7 @@ pub extern "C" fn render(_: i32) -> Result<()> {
             }
         }
         state
-            .start_render_loop(performance::get_time())
+            .start_render_loop(timestamp)
             .map_err(|_| Error::RecoverableError("Error rendering".to_string()))?;
     });
     Ok(())
@@ -249,7 +249,7 @@ pub extern "C" fn render_sync() -> Result<()> {
     with_state_mut!(state, {
         state.rebuild_tiles();
         state
-            .render_sync(performance::get_time())
+            .render_sync(0)
             .map_err(|_| Error::RecoverableError("Error rendering".to_string()))?;
     });
     Ok(())
@@ -275,7 +275,7 @@ pub extern "C" fn render_sync_shape(a: u32, b: u32, c: u32, d: u32) -> Result<()
 
         state.rebuild_tiles_from(Some(&id));
         state
-            .render_sync_shape(&id, performance::get_time())
+            .render_sync_shape(&id, 0)
             .map_err(|e| Error::RecoverableError(e.to_string()))?;
     });
     Ok(())
