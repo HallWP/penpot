@@ -26,18 +26,52 @@
    [potok.v2.core :as ptk]
    [rumext.v2 :as mf]))
 
+(mf/defc ^:private plan-card-actions*
+  [{:keys [cta-text cta-link
+           cta-text-trial cta-link-trial
+           cta-text-with-icon cta-link-with-icon
+           code-action show-button-cta]}]
+  (let [has-trial? (and cta-link-trial cta-text-trial)]
+    [:*
+     (when (and cta-link cta-text show-button-cta)
+       [:> button* {:variant "primary"
+                    :type "button"
+                    :class (stl/css-case :bottom-button (not has-trial?))
+                    :on-click cta-link} cta-text])
+     (when has-trial?
+       [:button {:class (stl/css :cta-button :bottom-link)
+                 :on-click cta-link-trial} cta-text-trial])
+     (when (and cta-link-with-icon cta-text-with-icon)
+       [:button {:class (stl/css :cta-button :more-info)
+                 :on-click cta-link-with-icon} cta-text-with-icon
+        [:> icon* {:icon-id "open-link"
+                   :size "s"}]])
+     (when (and cta-link cta-text (not show-button-cta))
+       [:button {:class (stl/css-case :cta-button true
+                                      :bottom-link (not (or has-trial? code-action)))
+                 :on-click cta-link} cta-text])
+     (when code-action
+       [:button {:class (stl/css-case :cta-button true
+                                      :activate-by-code (= code-action :activate)
+                                      :renew-by-code (= code-action :renovate)
+                                      :bottom-link (= code-action :renovate))
+                 ;; TODO add renovation modal
+                 :on-click (when (= code-action :activate)
+                             #(st/emit! (modal/show {:type :nitrate-code-activation})))}
+        (if (= code-action :activate)
+          (tr "subscription.settings.activate-by-code")
+          (tr "nitrate.subscription.settings.renew-with-code"))])]))
+
 (mf/defc plan-card*
+  {::mf/wrap [mf/memo]}
   [{:keys [card-title
            card-title-icon
            price-value price-period
            cancel-at
            benefits-title benefits
-           cta-text
-           cta-link
-           cta-text-trial
-           cta-link-trial
-           cta-text-with-icon
-           cta-link-with-icon
+           cta-text cta-link
+           cta-text-trial cta-link-trial
+           cta-text-with-icon cta-link-with-icon
            code-action
            editors
            recommended
@@ -56,7 +90,8 @@
        [:& badge-notification {:content (tr "subscription.settings.recommended")
                                :size :small
                                :is-focus true}])
-     (when editors [:span {:class (stl/css :plan-editors)} (tr "subscription.settings.editors" editors)])]
+     (when editors
+       [:span {:class (stl/css :plan-editors)} (tr "subscription.settings.editors" editors)])]
     (when (and price-value price-period)
       [:div {:class (stl/css :plan-price)}
        [:span {:class (stl/css :plan-price-value)} price-value]
@@ -64,38 +99,53 @@
     (when cancel-at
       [:div {:class (stl/css :plan-cancel)}
        [:span {:class (stl/css :plan-cancel-date)} cancel-at]])]
-   (when benefits-title [:h5 {:class (stl/css :benefits-title)} benefits-title])
+   (when benefits-title
+     [:h5 {:class (stl/css :benefits-title)} benefits-title])
    [:ul {:class (stl/css :benefits-list)}
-    (for [benefit  benefits]
+    (for [benefit benefits]
       [:li {:key (dm/str benefit) :class (stl/css :benefit)} "- " benefit])]
-   (when (and cta-link cta-text show-button-cta)
-     [:> button* {:variant "primary"
-                  :type "button"
-                  :class (stl/css-case :bottom-button (not (and cta-link-trial cta-text-trial)))
-                  :on-click cta-link} cta-text])
-   (when (and cta-link-trial cta-text-trial)
-     [:button {:class (stl/css :cta-button :bottom-link)
-               :on-click cta-link-trial} cta-text-trial])
-   (when (and cta-link-with-icon cta-text-with-icon)
-     [:button {:class (stl/css :cta-button :more-info)
-               :on-click cta-link-with-icon} cta-text-with-icon
-      [:> icon* {:icon-id "open-link"
-                 :size "s"}]])
-   (when (and cta-link cta-text (not show-button-cta))
-     [:button {:class (stl/css-case :cta-button true
-                                    :bottom-link (not (or (and cta-link-trial cta-text-trial) code-action)))
-               :on-click cta-link} cta-text])
-   (when code-action
-     [:button {:class (stl/css-case :cta-button true
-                                    :activate-by-code (= code-action :activate)
-                                    :renew-by-code (= code-action :renovate)
-                                    :bottom-link (= code-action :renovate))
-               ;; TODO add renovation modal
-               :on-click (when (= code-action :activate)
-                           #(st/emit! (modal/show {:type :nitrate-code-activation})))}
-      (if (= code-action :activate)
-        (tr "subscription.settings.activate-by-code")
-        (tr "nitrate.subscription.settings.renew-with-code"))])])
+   [:> plan-card-actions* {:cta-text cta-text
+                           :cta-link cta-link
+                           :cta-text-trial cta-text-trial
+                           :cta-link-trial cta-link-trial
+                           :cta-text-with-icon cta-text-with-icon
+                           :cta-link-with-icon cta-link-with-icon
+                           :code-action code-action
+                           :show-button-cta show-button-cta}]])
+
+(defn- get-subscription-name [subscription-type subscribe-to-trial?]
+  (if subscribe-to-trial?
+    (if (= subscription-type "unlimited")
+      (tr "subscription.settings.unlimited-trial")
+      (tr "subscription.settings.enterprise-trial"))
+    (case subscription-type
+      "professional" (tr "subscription.settings.professional")
+      "unlimited"    (tr "subscription.settings.unlimited")
+      "enterprise"   (tr "subscription.settings.enterprise"))))
+
+(mf/defc ^:private editors-section*
+  [{:keys [editors]}]
+  (let [show-editors-list* (mf/use-state false)
+        show-editors-list  (deref show-editors-list*)
+        handle-click       (mf/use-fn
+                            (fn [event]
+                              (dom/stop-propagation event)
+                              (swap! show-editors-list* not)))]
+    [:*
+     [:p {:class (stl/css :editors-text)}
+      (tr "subscription.settings.management.dialog.currently-editors-title" (c (count editors)))]
+     [:button {:class (stl/css :cta-button :show-editors-button) :on-click handle-click}
+      (tr "subscription.settings.management.dialog.editors")
+      [:> icon* {:icon-id (if show-editors-list i/arrow-up i/arrow-down)
+                 :class (stl/css :icon-dropdown)
+                 :size "s"}]]
+     (when show-editors-list
+       [:*
+        [:p {:class (stl/css :editors-text :editors-list-warning)}
+         (tr "subscription.settings.management.dialog.editors-explanation")]
+        [:ul {:class (stl/css :editors-list)}
+         (for [editor editors]
+           [:li {:key (dm/str (:id editor)) :class (stl/css :team-name)} "- " (:name editor)])]])]))
 
 (defn- make-management-form-schema [min-editors]
   [:map {:title "SeatsForm"}
@@ -114,14 +164,7 @@
         (deref unlimited-modal-step*)
 
         subscription-name
-        (if subscribe-to-trial
-          (if (= subscription-type "unlimited")
-            (tr "subscription.settings.unlimited-trial")
-            (tr "subscription.settings.enterprise-trial"))
-          (case subscription-type
-            "professional" (tr "subscription.settings.professional")
-            "unlimited" (tr "subscription.settings.unlimited")
-            "enterprise" (tr "subscription.settings.enterprise")))
+        (get-subscription-name subscription-type subscribe-to-trial)
 
         min-editors
         (if (seq editors) (count editors) 1)
@@ -184,18 +227,6 @@
            (st/emit! (ptk/event ::ev/event {::ev/name "close-subscription-modal"}))
            (modal/hide!)))
 
-        show-editors-list*
-        (mf/use-state false)
-
-        show-editors-list
-        (deref show-editors-list*)
-
-        handle-click
-        (mf/use-fn
-         (fn [event]
-           (dom/stop-propagation event)
-           (swap! show-editors-list* not)))
-
         on-submit
         (mf/use-fn
          (mf/deps current-subscription unlimited-modal-step*)
@@ -225,20 +256,7 @@
 
       [:div {:class (stl/css :modal-content)}
        (when (and (seq editors) (not= unlimited-modal-step 2))
-         [:* [:p {:class (stl/css :editors-text)}
-              (tr "subscription.settings.management.dialog.currently-editors-title" (c (count editors)))]
-          [:button {:class (stl/css :cta-button :show-editors-button) :on-click handle-click}
-           (tr "subscription.settings.management.dialog.editors")
-           [:> icon* {:icon-id (if show-editors-list i/arrow-up i/arrow-down)
-                      :class (stl/css :icon-dropdown)
-                      :size "s"}]]
-          (when show-editors-list
-            [:*
-             [:p {:class (stl/css :editors-text :editors-list-warning)}
-              (tr "subscription.settings.management.dialog.editors-explanation")]
-             [:ul {:class (stl/css :editors-list)}
-              (for [editor editors]
-                [:li {:key (dm/str (:id editor)) :class (stl/css :team-name)} "- " (:name editor)])]])])
+         [:> editors-section* {:editors editors}])
 
        (when (and
               (or (and (= subscription-type "professional")
@@ -265,20 +283,20 @@
                              :class (stl/css :input-field)}]]
               [:div {:class (stl/css :editors-cost)}
                [:span {:class (stl/css :modal-text-medium)}
-                (when (> (get-in @form [:clean-data :min-members]) 25)
+                (when (> (dm/get-in @form [:clean-data :min-members]) 25)
                   [:> i18n/tr-html*
                    {:class (stl/css :modal-text-cap)
                     :tag-name "span"
                     :content (tr "subscription.settings.management.dialog.price-month" "175")}])
                 [:> i18n/tr-html*
-                 {:class (stl/css-case :text-strikethrough (> (get-in @form [:clean-data :min-members]) 25))
+                 {:class (stl/css-case :text-strikethrough (> (dm/get-in @form [:clean-data :min-members]) 25))
                   :tag-name "span"
                   :content (tr "subscription.settings.management.dialog.price-month"
-                               (* 7 (or (get-in @form [:clean-data :min-members]) 0)))}]]
+                               (* 7 (or (dm/get-in @form [:clean-data :min-members]) 0)))}]]
                [:span {:class (stl/css :modal-text-medium)}
                 (tr "subscription.settings.management.dialog.payment-explanation")]]]
 
-             (when (get-in @form [:errors :min-members])
+             (when (dm/get-in @form [:errors :min-members])
                [:div {:class (stl/css :error-message)}
                 (tr "subscription.settings.management.dialog.input-error")])
 
@@ -769,8 +787,7 @@
        [:> icon* {:icon-id "close"
                   :size "m"}]]
       [:div {:class (stl/css :modal-title :subscription-title)}
-       (str "Switch to " subscription-type " plan?")]
-
+       (dm/str "Switch to " subscription-type " plan?")]
       [:div {:class (stl/css :modal-content)}
        [:div {:class (stl/css :modal-text-medium)}
         "When you downgrade:"]
