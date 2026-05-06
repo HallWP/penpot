@@ -2376,7 +2376,8 @@ Will return a value that matches this schema:
            (migrate-to-v1-3)
            (migrate-to-v1-4)
            (map->tokens-lib)
-           (fix-conflicting-token-names)))))
+           (fix-conflicting-token-names)
+           (fix-missing-sets-in-themes)))))
 
 #?(:clj
    (defn- read-tokens-lib-v1-2
@@ -2392,7 +2393,8 @@ Will return a value that matches this schema:
            (migrate-to-v1-3)
            (migrate-to-v1-4)
            (map->tokens-lib)
-           (fix-conflicting-token-names)))))
+           (fix-conflicting-token-names)
+           (fix-missing-sets-in-themes)))))
 
 #?(:clj
    (defn- read-tokens-lib-v1-3
@@ -2408,7 +2410,8 @@ Will return a value that matches this schema:
             :active-themes active-themes}
            (migrate-to-v1-4)
            (map->tokens-lib)
-           (fix-conflicting-token-names)))))
+           (fix-conflicting-token-names)
+           (fix-missing-sets-in-themes)))))
 
 #?(:clj
    (defn- read-tokens-lib-v1-4
@@ -2422,7 +2425,8 @@ Will return a value that matches this schema:
             :themes themes
             :active-themes active-themes}
            (map->tokens-lib)
-           (fix-conflicting-token-names)))))
+           (fix-conflicting-token-names)
+           (fix-missing-sets-in-themes)))))
 
 #?(:clj
    (defn- write-tokens-lib
